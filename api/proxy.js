@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     delete headers.host;
     delete headers.connection;
     delete headers['content-length'];
-    delete headers['accept-encoding']; // Let axios handle decompression
+    headers['accept-encoding'] = 'identity'; // Disable compression to ensure we can parse body
 
     // Spoof headers
     headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -84,11 +84,13 @@ export default async function handler(req, res) {
         if (path.includes('auth/login') && response.headers['set-cookie']) {
             try {
                 const jsonBody = JSON.parse(response.data.toString());
-                jsonBody.cookies = response.headers['set-cookie'];
+                // Normalize to array
+                const cookies = response.headers['set-cookie'];
+                jsonBody.cookies = Array.isArray(cookies) ? cookies : [cookies];
                 res.json(jsonBody);
                 return;
             } catch (e) {
-                // Not JSON, ignore
+                console.error('Error injecting cookies:', e);
             }
         }
 

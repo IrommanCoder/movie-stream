@@ -34,19 +34,21 @@ const SeedrService = {
             // The proxy will inject 'cookies' array into data if it finds Set-Cookie headers
             if (data.success === true || (data.cookies && data.cookies.length > 0)) {
 
-                if (data.cookies && Array.isArray(data.cookies)) {
+                let cookies = data.cookies;
+                if (!cookies) {
+                    console.warn('Login successful but no cookies found in response body.');
+                } else {
+                    // Normalize to array if it's a string
+                    if (!Array.isArray(cookies)) {
+                        cookies = [cookies];
+                    }
+
                     // Extract the actual cookie string (key=value)
-                    // Set-Cookie header format: "name=value; Path=/; ..."
-                    // We just need "name=value;"
-                    const cookieHeaderValue = data.cookies.map(c => {
+                    const cookieHeaderValue = cookies.map(c => {
                         return c.split(';')[0];
                     }).join('; ');
 
                     localStorage.setItem('seedr_cookies', cookieHeaderValue);
-                } else {
-                    // Fallback: If no cookies in body, maybe browser set them?
-                    // But we rely on X-Seedr-Cookie for proxy, so this is risky.
-                    console.warn('Login successful but no cookies found in response body.');
                 }
 
                 localStorage.setItem('seedr_user', JSON.stringify({
@@ -61,6 +63,10 @@ const SeedrService = {
             return { success: false, error: 'Login failed: Invalid response' };
         } catch (error) {
             console.error('Seedr Login Error:', error);
+            // If 401/403, clear any existing session
+            if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+                this.logout();
+            }
             return { success: false, error: error.response?.data?.error || error.message || 'Network error' };
         }
     },
