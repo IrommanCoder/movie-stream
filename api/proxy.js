@@ -34,6 +34,72 @@ export default async function handler(req, res) {
     }
 
     const targetUrl = `${baseUrl}/${path}${queryString ? '?' + queryString : ''}`;
-    res.status(500).json({ error: 'Proxy error', details: error.message });
-}
+
+    // Prepare headers
+    const headers = { ...req.headers };
+    delete headers.host;
+    delete headers.connection;
+    delete headers['content-length'];
+    delete headers['accept-encoding'];
+
+    // Spoof User-Agent to look like a browser
+    headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+    // Forward Authorization header if present (Basic Auth)
+    if (req.headers['authorization']) {
+        headers['authorization'] = req.headers['authorization'];
+    }
+
+    // Prepare body
+    let body = req.body;
+
+    // Vercel parses body into object, but node-fetch expects string/buffer
+    if (body && typeof body === 'object' && !['GET', 'HEAD'].includes(req.method)) {
+        const contentType = headers['content-type'] || '';
+
+        if (contentType.includes('application/x-www-form-urlencoded')) {
+            body = new URLSearchParams(body).toString();
+        } else if (contentType.includes('application/json')) {
+            body = JSON.stringify(body);
+        }
+    }
+
+    try {
+        const response = await fetch(targetUrl, {
+            method: req.method,
+            headers: headers,
+            body: ['GET', 'HEAD'].includes(req.method) ? null : body,
+            redirect: 'manual'
+        });
+
+        // Copy response headers
+        const rawHeaders = response.headers.raw();
+
+        Object.keys(rawHeaders).forEach(key => {
+            const lowerKey = key.toLowerCase();
+            const values = rawHeaders[key];
+
+            // STRIP WWW-Authenticate to prevent browser popup
+            if (lowerKey === 'www-authenticate') return;
+            // STRIP Content-Encoding because node-fetch decompresses it
+            if (lowerKey === 'content-encoding') return;
+            // STRIP Content-Length because the decompressed size is different
+            if (lowerKey === 'content-length') return;
+            // STRIP Transfer-Encoding because Vercel handles chunking
+            if (lowerKey === 'transfer-encoding') return;
+
+            res.setHeader(key, values);
+        });
+
+        // Send status
+        res.status(response.status);
+
+        // Send body
+        const buffer = await response.buffer();
+        res.send(buffer);
+
+    } catch (error) {
+        console.error('Proxy error:', error);
+        res.status(500).json({ error: 'Proxy error', details: error.message });
+    }
 }

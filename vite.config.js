@@ -10,15 +10,7 @@ export default defineConfig({
       '/seedr-api': {
         target: 'https://www.seedr.cc',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/seedr-api/, ''),
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            const seedrCookie = req.headers['x-seedr-cookie'];
-            if (seedrCookie) {
-              proxyReq.setHeader('Cookie', seedrCookie);
-            }
-          });
-        }
+        rewrite: (path) => path.replace(/^\/seedr-api/, '')
       }
     }
   }
