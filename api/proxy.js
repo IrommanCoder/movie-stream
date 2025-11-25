@@ -25,7 +25,15 @@ export default async function handler(req, res) {
 
     // Reconstruct query string
     const queryString = new URLSearchParams(queryParams).toString();
-    const targetUrl = `https://www.seedr.cc/rest/${path}${queryString ? '?' + queryString : ''}`;
+
+    // Determine base path: /auth/login is at root, others are likely under /rest
+    // The user specifically pointed out https://www.seedr.cc/auth/login
+    let baseUrl = 'https://www.seedr.cc/rest';
+    if (path.startsWith('auth/') || path.startsWith('oauth/')) {
+        baseUrl = 'https://www.seedr.cc';
+    }
+
+    const targetUrl = `${baseUrl}/${path}${queryString ? '?' + queryString : ''}`;
 
     // Prepare headers
     const headers = { ...req.headers };
