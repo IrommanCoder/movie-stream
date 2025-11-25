@@ -45,9 +45,10 @@ export default async function handler(req, res) {
     // Spoof User-Agent to look like a browser
     headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-    // Forward Authorization header if present (Basic Auth)
-    if (req.headers['authorization']) {
-        headers['authorization'] = req.headers['authorization'];
+    // Rewrite X-Seedr-Cookie to Cookie
+    if (headers['x-seedr-cookie']) {
+        headers['cookie'] = headers['x-seedr-cookie'];
+        delete headers['x-seedr-cookie'];
     }
 
     // Prepare body
@@ -88,11 +89,44 @@ export default async function handler(req, res) {
             // STRIP Transfer-Encoding because Vercel handles chunking
             if (lowerKey === 'transfer-encoding') return;
 
+            // Handle Set-Cookie: Strip Domain so it applies to the current domain (Vercel)
+            if (lowerKey === 'set-cookie') {
+                const modifiedCookies = values.map(value => {
+                    // Remove "Domain=...;" or "Domain=..."
+                    let newValue = value.replace(/Domain=[^;]+;?/gi, '');
+                    // Ensure Path is /
+                    newValue = newValue.replace(/Path=[^;]+;?/gi, 'Path=/;');
+                    return newValue;
+                });
+                res.setHeader(key, modifiedCookies);
+                return;
+            }
+
             res.setHeader(key, values);
         });
 
         // Send status
         res.status(response.status);
+
+        // Special handling for login: Inject cookies into body so client can save them in localStorage
+        // This bypasses browser cookie storage issues (SameSite, Domain, etc.)
+        if (path.includes('auth/login') && response.headers.has('set-cookie')) {
+            try {
+                const data = await response.json();
+                const rawHeaders = response.headers.raw();
+
+                // Extract Set-Cookie headers
+                if (rawHeaders['set-cookie']) {
+                    data.cookies = rawHeaders['set-cookie'];
+                }
+
+                res.json(data);
+                return;
+            } catch (e) {
+                console.error('Error parsing login response:', e);
+                // Fallback to streaming if json parse fails
+            }
+        }
 
         // Send body
         const buffer = await response.buffer();

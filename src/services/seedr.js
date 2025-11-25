@@ -3,65 +3,75 @@ import axios from 'axios';
 const BASE_URL = '/seedr-api';
 
 const SeedrService = {
-    // Helper to get headers with Basic Auth
+    // Helper to get headers with cookies
     getHeaders() {
-        const user = localStorage.getItem('seedr_user_creds');
-        if (!user) return {};
-
-        const { username, password } = JSON.parse(user);
-        const auth = btoa(`${username}:${password}`);
+        const cookies = localStorage.getItem('seedr_cookies');
+        if (!cookies) return {};
 
         return {
-            'Authorization': `Basic ${auth}`
+            'X-Seedr-Cookie': cookies
         };
     },
 
-    // Login (Just verifies credentials and stores them)
+    // Login
     async login(username, password) {
         try {
-            // Test credentials by fetching settings
-            const auth = btoa(`${username}:${password}`);
-            const response = await axios.get(`${BASE_URL}/account/settings`, {
+            const formData = new URLSearchParams();
+            formData.append('username', username);
+            formData.append('password', password);
+            formData.append('rememberme', 'on');
+            formData.append('cf-turnstile-response', ''); // Empty as per user reference
+
+            const response = await axios.post(`${BASE_URL}/auth/login`, formData, {
                 headers: {
-                    'Authorization': `Basic ${auth}`
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 }
             });
 
-            if (response.status === 200) {
-                // Store credentials for future requests
-                localStorage.setItem('seedr_user_creds', JSON.stringify({ username, password }));
+            const data = response.data;
 
-                // Store user info
-                const data = response.data;
-                // Settings endpoint returns { settings: ..., account: ... }
-                // We need to map it to the user object format expected by the app
-                const account = data.account || {};
+            // Check for success and cookies
+            // The proxy will inject 'cookies' array into data if it finds Set-Cookie headers
+            if (data.success === true || (data.cookies && data.cookies.length > 0)) {
+
+                if (data.cookies && Array.isArray(data.cookies)) {
+                    // Extract the actual cookie string (key=value)
+                    // Set-Cookie header format: "name=value; Path=/; ..."
+                    // We just need "name=value;"
+                    const cookieHeaderValue = data.cookies.map(c => {
+                        return c.split(';')[0];
+                    }).join('; ');
+
+                    localStorage.setItem('seedr_cookies', cookieHeaderValue);
+                } else {
+                    // Fallback: If no cookies in body, maybe browser set them?
+                    // But we rely on X-Seedr-Cookie for proxy, so this is risky.
+                    console.warn('Login successful but no cookies found in response body.');
+                }
 
                 localStorage.setItem('seedr_user', JSON.stringify({
-                    username: account.username || username,
-                    email: account.email || username,
-                    user_id: account.user_id,
-                    is_premium: account.premium
+                    username: data.username,
+                    email: data.email,
+                    user_id: data.user_id,
+                    is_premium: data.is_premium
                 }));
-
                 return { success: true };
             }
 
-            return { success: false, error: 'Login failed' };
+            return { success: false, error: 'Login failed: Invalid response' };
         } catch (error) {
             console.error('Seedr Login Error:', error);
-            return { success: false, error: 'Invalid credentials or network error' };
+            return { success: false, error: error.response?.data?.error || error.message || 'Network error' };
         }
     },
 
     logout() {
-        localStorage.removeItem('seedr_user_creds');
+        localStorage.removeItem('seedr_cookies');
         localStorage.removeItem('seedr_user');
-        localStorage.removeItem('seedr_cookies'); // Cleanup old cookies
     },
 
     isLoggedIn() {
-        return !!localStorage.getItem('seedr_user_creds');
+        return !!localStorage.getItem('seedr_cookies');
     },
 
     getUser() {
