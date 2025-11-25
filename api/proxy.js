@@ -106,6 +106,26 @@ export default async function handler(req, res) {
         // Send status
         res.status(response.status);
 
+        // Special handling for login: Inject cookies into body so client can save them in localStorage
+        // This bypasses browser cookie storage issues (SameSite, Domain, etc.)
+        if (path.includes('auth/login') && response.headers.has('set-cookie')) {
+            try {
+                const data = await response.json();
+                const rawHeaders = response.headers.raw();
+
+                // Extract Set-Cookie headers
+                if (rawHeaders['set-cookie']) {
+                    data.cookies = rawHeaders['set-cookie'];
+                }
+
+                res.json(data);
+                return;
+            } catch (e) {
+                console.error('Error parsing login response:', e);
+                // Fallback to streaming if json parse fails
+            }
+        }
+
         // Send body
         const buffer = await response.buffer();
         res.send(buffer);
