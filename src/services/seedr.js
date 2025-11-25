@@ -7,6 +7,12 @@ const SeedrService = {
     getHeaders() {
         const cookies = localStorage.getItem('seedr_cookies');
         if (!cookies) return {};
+
+        // If using browser cookies (set via proxy), don't send X-Seedr-Cookie
+        if (cookies === 'browser_cookie_mode') {
+            return {};
+        }
+
         // The proxy will rewrite X-Seedr-Cookie to Cookie
         return {
             'X-Seedr-Cookie': cookies
@@ -38,17 +44,26 @@ const SeedrService = {
                     }).join('; ');
 
                     localStorage.setItem('seedr_cookies', cookieHeaderValue);
-                    localStorage.setItem('seedr_user', JSON.stringify({
-                        username: data.username,
-                        email: data.email,
-                        user_id: data.user_id,
-                        is_premium: data.is_premium
-                    }));
-                    return { success: true };
+                } else {
+                    // If no cookies in body, assume browser handled Set-Cookie via proxy
+                    // We still mark as logged in by setting a dummy value or just the user
+                    // But getHeaders() relies on seedr_cookies. 
+                    // If we are using browser cookies, we don't need X-Seedr-Cookie.
+                    // Let's set a flag or just use the user object presence.
+                    // For compatibility with getHeaders, let's set a flag.
+                    localStorage.setItem('seedr_cookies', 'browser_cookie_mode');
                 }
+
+                localStorage.setItem('seedr_user', JSON.stringify({
+                    username: data.username,
+                    email: data.email,
+                    user_id: data.user_id,
+                    is_premium: data.is_premium
+                }));
+                return { success: true };
             }
 
-            return { success: false, error: 'Login failed: No cookies received' };
+            return { success: false, error: 'Login failed: Invalid response' };
         } catch (error) {
             console.error('Seedr Login Error:', error);
             return { success: false, error: error.response?.data?.error || error.message || 'Network error' };

@@ -90,10 +90,28 @@ export default async function handler(req, res) {
             // STRIP Transfer-Encoding because Vercel handles chunking
             if (lowerKey === 'transfer-encoding') return;
 
-            // Handle Set-Cookie if needed (though we use token/cookie from body usually)
-            // But if Seedr sets cookies, we might want to pass them back or ignore them
-            // depending on our auth strategy.
-            // For now, let's pass everything except problematic headers
+            // Handle Set-Cookie: Strip Domain so it applies to the current domain (Vercel)
+            if (lowerKey === 'set-cookie') {
+                // value might be an array or string depending on node-fetch version/headers handling
+                // node-fetch usually returns a string for single header, but Set-Cookie can be multiple.
+                // However, response.headers.forEach iterates over each header. 
+                // If multiple Set-Cookie, it might call this multiple times or pass a combined string?
+                // node-fetch headers.forEach passes value as string. If multiple, it might be comma separated?
+                // Actually, Set-Cookie is special. node-fetch might return it as a combined string or we might need raw()
+                // But let's try simple string replacement first.
+
+                // Remove "Domain=...;" or "Domain=..."
+                let newValue = value.replace(/Domain=[^;]+;?/gi, '');
+                // Also ensure Path is /
+                newValue = newValue.replace(/Path=[^;]+;?/gi, 'Path=/;');
+
+                // Remove Secure if on localhost (optional, but good for dev) - actually Vercel is HTTPS so Secure is fine.
+                // But SameSite might be strict. Let's leave it unless it breaks.
+
+                res.setHeader(key, newValue);
+                return;
+            }
+
             res.setHeader(key, value);
         });
 
