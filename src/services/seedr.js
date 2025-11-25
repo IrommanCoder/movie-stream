@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = '/seedr-api';
+const BASE_URL = '/seedr-proxy';
 
 const SeedrService = {
     // Helper to get headers with cookies
