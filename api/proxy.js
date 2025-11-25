@@ -42,11 +42,25 @@ export default async function handler(req, res) {
         delete headers['x-seedr-cookie'];
     }
 
+    // Prepare body
+    let body = req.body;
+
+    // Vercel parses body into object, but node-fetch expects string/buffer
+    if (body && typeof body === 'object' && !['GET', 'HEAD'].includes(req.method)) {
+        const contentType = headers['content-type'] || '';
+
+        if (contentType.includes('application/x-www-form-urlencoded')) {
+            body = new URLSearchParams(body).toString();
+        } else if (contentType.includes('application/json')) {
+            body = JSON.stringify(body);
+        }
+    }
+
     try {
         const response = await fetch(targetUrl, {
             method: req.method,
             headers: headers,
-            body: ['GET', 'HEAD'].includes(req.method) ? null : req.body,
+            body: ['GET', 'HEAD'].includes(req.method) ? null : body,
             redirect: 'manual'
         });
 
