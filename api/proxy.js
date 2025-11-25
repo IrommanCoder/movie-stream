@@ -45,6 +45,10 @@ export default async function handler(req, res) {
     // Spoof User-Agent to look like a browser
     headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+    // Spoof Referer and Origin to satisfy Seedr's security checks
+    headers['referer'] = 'https://www.seedr.cc/';
+    headers['origin'] = 'https://www.seedr.cc';
+
     // Rewrite X-Seedr-Cookie to Cookie
     if (headers['x-seedr-cookie']) {
         headers['cookie'] = headers['x-seedr-cookie'];

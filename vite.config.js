@@ -9,6 +9,7 @@ export default defineConfig({
     proxy: {
       '/seedr-api': {
         target: 'https://www.seedr.cc',
+        changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/seedr-api/, ''),
         configure: (proxy, options) => {
