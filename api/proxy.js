@@ -7,40 +7,44 @@ export default async function handler(req, res) {
         return;
     }
 
-    const { path } = req.query;
-    // Construct the target URL
-    // req.url in Vercel functions might be just the path suffix or full path depending on rewrite
-    // We rely on the rewrite mapping /seedr-api/* -> /api/proxy?path=* (if we used query)
-    // But our vercel.json maps /seedr-api/:path* -> /api/proxy
+    // Get path from query (set by vercel.json rewrite)
+    let { path, ...queryParams } = req.query;
 
-    // Let's reconstruct the path. 
-    // If the request is /seedr-api/auth/login, we want /rest/auth/login
-
-    let targetPath = req.url.replace('/seedr-api', '/rest');
-    // If the replacement didn't happen (e.g. direct call), force it or handle it
-    if (!targetPath.startsWith('/rest')) {
-        // Fallback or error, but let's assume the rewrite works as expected
-        // or try to parse it from the request URL
-        if (req.url.startsWith('/api/proxy')) {
-            // If called directly or via some internal rewrite that exposes the function path
-            // We might need to look at x-forwarded-path or similar, but let's stick to simple replacement
-            // assuming the client calls /seedr-api/...
-        }
+    // Handle array case if Vercel passes it as array
+    if (Array.isArray(path)) {
+        path = path.join('/');
     }
 
-    const targetUrl = `https://www.seedr.cc${targetPath}`;
+    // Fallback if path is missing
+    if (!path) {
+        path = '';
+    }
+
+    // Clean up the path
+    path = path.replace(/^\/+/, '');
+
+    // Reconstruct query string
+    const queryString = new URLSearchParams(queryParams).toString();
+    const targetUrl = `https://www.seedr.cc/rest/${path}${queryString ? '?' + queryString : ''}`;
 
     // Prepare headers
     const headers = { ...req.headers };
-    delete headers.host; // Remove host header to avoid conflicts
+    delete headers.host;
     delete headers.connection;
-    delete headers['content-length']; // Let fetch calculate it
+    delete headers['content-length'];
+
+    // Spoof User-Agent to look like a browser
+    headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
     // Rewrite X-Seedr-Cookie to Cookie
     if (headers['x-seedr-cookie']) {
         headers['cookie'] = headers['x-seedr-cookie'];
         delete headers['x-seedr-cookie'];
     }
+
+    // Spoof Origin and Referer to bypass Seedr checks
+    headers['origin'] = 'https://www.seedr.cc';
+    headers['referer'] = 'https://www.seedr.cc/';
 
     // Prepare body
     let body = req.body;
