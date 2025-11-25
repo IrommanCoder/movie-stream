@@ -11,7 +11,7 @@ export default function handler(req, res) {
         target: 'https://www.seedr.cc',
         changeOrigin: true,
         pathRewrite: {
-            '^/seedr-proxy': '/rest', // Rewrite /seedr-proxy to /rest
+            '^/seedr-api': '/rest', // Rewrite /seedr-api to /rest (Seedr's API base)
         },
         onProxyReq: (proxyReq, req) => {
             // Ensure the cookie header is set on the proxy request

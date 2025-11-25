@@ -7,11 +7,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/seedr-proxy': {
-        target: 'https://www.seedr.cc/rest',
+      '/seedr-api': {
+        target: 'https://www.seedr.cc',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/seedr-proxy/, ''),
-        configure: (proxy, _options) => {
+        rewrite: (path) => path.replace(/^\/seedr-api/, ''),
+        configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
             const seedrCookie = req.headers['x-seedr-cookie'];
             if (seedrCookie) {
