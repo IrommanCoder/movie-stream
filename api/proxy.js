@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import axios from 'axios';
 
 export default async function handler(req, res) {
     // Handle CORS preflight
@@ -7,27 +7,16 @@ export default async function handler(req, res) {
         return;
     }
 
-    // Get path from query (set by vercel.json rewrite)
+    // Get path from query
     let { path, ...queryParams } = req.query;
 
-    // Handle array case if Vercel passes it as array
-    if (Array.isArray(path)) {
-        path = path.join('/');
-    }
-
-    // Fallback if path is missing
-    if (!path) {
-        path = '';
-    }
-
-    // Clean up the path
+    if (Array.isArray(path)) path = path.join('/');
+    if (!path) path = '';
     path = path.replace(/^\/+/, '');
 
-    // Reconstruct query string
     const queryString = new URLSearchParams(queryParams).toString();
 
-    // Determine base path: /auth/login is at root, others are likely under /rest
-    // The user specifically pointed out https://www.seedr.cc/auth/login
+    // Determine base URL
     let baseUrl = 'https://www.seedr.cc/rest';
     if (path.startsWith('auth/') || path.startsWith('oauth/')) {
         baseUrl = 'https://www.seedr.cc';
@@ -40,104 +29,78 @@ export default async function handler(req, res) {
     delete headers.host;
     delete headers.connection;
     delete headers['content-length'];
-    delete headers['accept-encoding'];
+    delete headers['accept-encoding']; // Let axios handle decompression
 
-    // Spoof User-Agent to look like a browser
+    // Spoof headers
     headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
-    // Spoof Referer and Origin to satisfy Seedr's security checks
     headers['referer'] = 'https://www.seedr.cc/';
     headers['origin'] = 'https://www.seedr.cc';
 
-    // Rewrite X-Seedr-Cookie to Cookie
+    // Handle Cookie Rewrite
     if (headers['x-seedr-cookie']) {
         headers['cookie'] = headers['x-seedr-cookie'];
         delete headers['x-seedr-cookie'];
     }
 
     // Prepare body
-    let body = req.body;
-
-    // Vercel parses body into object, but node-fetch expects string/buffer
-    if (body && typeof body === 'object' && !['GET', 'HEAD'].includes(req.method)) {
-        const contentType = headers['content-type'] || '';
-
-        if (contentType.includes('application/x-www-form-urlencoded')) {
-            body = new URLSearchParams(body).toString();
-        } else if (contentType.includes('application/json')) {
-            body = JSON.stringify(body);
-        }
+    let data = req.body;
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        data = undefined;
+    } else if (headers['content-type']?.includes('application/x-www-form-urlencoded')) {
+        data = new URLSearchParams(req.body).toString();
     }
 
     try {
-        const response = await fetch(targetUrl, {
+        const response = await axios({
             method: req.method,
+            url: targetUrl,
             headers: headers,
-            body: ['GET', 'HEAD'].includes(req.method) ? null : body,
-            redirect: 'manual'
+            data: data,
+            responseType: 'arraybuffer', // Get raw buffer
+            validateStatus: () => true, // Don't throw on 4xx/5xx
+            maxRedirects: 0 // Manual redirect handling
         });
 
         // Copy response headers
-        const rawHeaders = response.headers.raw();
-
-        Object.keys(rawHeaders).forEach(key => {
+        Object.entries(response.headers).forEach(([key, value]) => {
             const lowerKey = key.toLowerCase();
-            const values = rawHeaders[key];
+            if (['content-length', 'content-encoding', 'transfer-encoding', 'connection'].includes(lowerKey)) return;
 
-            // STRIP WWW-Authenticate to prevent browser popup
-            if (lowerKey === 'www-authenticate') return;
-            // STRIP Content-Encoding because node-fetch decompresses it
-            if (lowerKey === 'content-encoding') return;
-            // STRIP Content-Length because the decompressed size is different
-            if (lowerKey === 'content-length') return;
-            // STRIP Transfer-Encoding because Vercel handles chunking
-            if (lowerKey === 'transfer-encoding') return;
-
-            // Handle Set-Cookie: Strip Domain so it applies to the current domain (Vercel)
+            // Handle Set-Cookie
             if (lowerKey === 'set-cookie') {
-                const modifiedCookies = values.map(value => {
-                    // Remove "Domain=...;" or "Domain=..."
-                    let newValue = value.replace(/Domain=[^;]+;?/gi, '');
-                    // Ensure Path is /
-                    newValue = newValue.replace(/Path=[^;]+;?/gi, 'Path=/;');
-                    return newValue;
-                });
-                res.setHeader(key, modifiedCookies);
+                let cookies = Array.isArray(value) ? value : [value];
+                cookies = cookies.map(c => c.replace(/Domain=[^;]+;?/gi, '').replace(/Path=[^;]+;?/gi, 'Path=/;'));
+                res.setHeader(key, cookies);
                 return;
             }
 
-            res.setHeader(key, values);
+            res.setHeader(key, value);
         });
 
         // Send status
         res.status(response.status);
 
-        // Special handling for login: Inject cookies into body so client can save them in localStorage
-        // This bypasses browser cookie storage issues (SameSite, Domain, etc.)
-        if (path.includes('auth/login') && response.headers.has('set-cookie')) {
+        // Inject cookies for login
+        if (path.includes('auth/login') && response.headers['set-cookie']) {
             try {
-                const data = await response.json();
-                const rawHeaders = response.headers.raw();
-
-                // Extract Set-Cookie headers
-                if (rawHeaders['set-cookie']) {
-                    data.cookies = rawHeaders['set-cookie'];
-                }
-
-                res.json(data);
+                const jsonBody = JSON.parse(response.data.toString());
+                jsonBody.cookies = response.headers['set-cookie'];
+                res.json(jsonBody);
                 return;
             } catch (e) {
-                console.error('Error parsing login response:', e);
-                // Fallback to streaming if json parse fails
+                // Not JSON, ignore
             }
         }
 
         // Send body
-        const buffer = await response.buffer();
-        res.send(buffer);
+        res.send(response.data);
 
     } catch (error) {
-        console.error('Proxy error:', error);
-        res.status(500).json({ error: 'Proxy error', details: error.message });
+        console.error('Proxy error:', error.message);
+        res.status(500).json({
+            error: 'Proxy Error',
+            message: error.message,
+            details: error.response?.data?.toString() || 'No details'
+        });
     }
 }
