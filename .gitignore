@@ -142,3 +142,11 @@ Thumbs.db
 
 # Seedr API specific
 seedr_cookies
+
+# Python
+
+*.py[cod]
+*$py.class
+venv/
+env/
+.env

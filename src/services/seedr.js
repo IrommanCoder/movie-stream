@@ -1,28 +1,19 @@
 import axios from 'axios';
 
-const BASE_URL = '/seedr-api';
+const BASE_URL = '/api/seedr';
+
+// Ensure cookies are sent with requests
+axios.defaults.withCredentials = true;
 
 const SeedrService = {
-    // Helper to get headers with cookies
-    getHeaders() {
-        const cookies = localStorage.getItem('seedr_cookies');
-        if (!cookies) return {};
-
-        return {
-            'X-Seedr-Cookie': cookies
-        };
-    },
-
     // Login
     async login(username, password) {
         try {
             const formData = new URLSearchParams();
             formData.append('username', username);
             formData.append('password', password);
-            formData.append('rememberme', 'on');
-            formData.append('cf-turnstile-response', ''); // Empty as per user reference
 
-            const response = await axios.post(`${BASE_URL}/auth/login`, formData, {
+            const response = await axios.post(`${BASE_URL}/login`, formData, {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
@@ -30,40 +21,17 @@ const SeedrService = {
 
             const data = response.data;
 
-            // Check for success and cookies
-            // The proxy will inject 'cookies' array into data if it finds Set-Cookie headers
-            if (data.success === true || (data.cookies && data.cookies.length > 0)) {
-
-                let cookies = data.cookies;
-                if (!cookies) {
-                    console.warn('Login successful but no cookies found in response body.');
-                } else {
-                    // Normalize to array if it's a string
-                    if (!Array.isArray(cookies)) {
-                        cookies = [cookies];
-                    }
-
-                    // Extract the actual cookie string (key=value)
-                    const cookieHeaderValue = cookies.map(c => {
-                        return c.split(';')[0];
-                    }).join('; ');
-
-                    localStorage.setItem('seedr_cookies', cookieHeaderValue);
+            if (data.success === true) {
+                // Cookies are handled by the browser automatically now
+                if (data.user_data) {
+                    localStorage.setItem('seedr_user', JSON.stringify(data.user_data));
                 }
-
-                localStorage.setItem('seedr_user', JSON.stringify({
-                    username: data.username,
-                    email: data.email,
-                    user_id: data.user_id,
-                    is_premium: data.is_premium
-                }));
                 return { success: true };
             }
 
-            return { success: false, error: 'Login failed: Invalid response' };
+            return { success: false, error: 'Login failed' };
         } catch (error) {
             console.error('Seedr Login Error:', error);
-            // If 401/403, clear any existing session
             if (error.response && (error.response.status === 401 || error.response.status === 403)) {
                 this.logout();
             }
@@ -72,12 +40,19 @@ const SeedrService = {
     },
 
     logout() {
-        localStorage.removeItem('seedr_cookies');
+        // Clear cookies (best effort)
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i];
+            const eqPos = cookie.indexOf("=");
+            const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+        }
         localStorage.removeItem('seedr_user');
     },
 
     isLoggedIn() {
-        return !!localStorage.getItem('seedr_cookies');
+        return !!localStorage.getItem('seedr_user');
     },
 
     getUser() {
@@ -89,9 +64,7 @@ const SeedrService = {
     async getSettings() {
         if (!this.isLoggedIn()) return null;
         try {
-            const response = await axios.get(`${BASE_URL}/account/settings`, {
-                headers: this.getHeaders()
-            });
+            const response = await axios.get(`${BASE_URL}/settings`);
             return response.data;
         } catch (error) {
             console.error('Error fetching settings:', error);
@@ -103,9 +76,7 @@ const SeedrService = {
     async listRootItems() {
         if (!this.isLoggedIn()) return null;
         try {
-            const response = await axios.get(`${BASE_URL}/fs/folder/0/items`, {
-                headers: this.getHeaders()
-            });
+            const response = await axios.get(`${BASE_URL}/files`);
             return response.data;
         } catch (error) {
             console.error('Error listing root items:', error);
@@ -117,9 +88,7 @@ const SeedrService = {
     async listFolderItems(folderId) {
         if (!this.isLoggedIn()) return null;
         try {
-            const response = await axios.get(`${BASE_URL}/fs/folder/${folderId}/items`, {
-                headers: this.getHeaders()
-            });
+            const response = await axios.get(`${BASE_URL}/folder/${folderId}`);
             return response.data;
         } catch (error) {
             console.error('Error listing folder items:', error);
@@ -127,45 +96,28 @@ const SeedrService = {
         }
     },
 
-    // Scrape Torrent (Confirmed)
+    // Scrape Torrent (Not implemented in backend yet, skipping or adding placeholder)
     async scrapeTorrent(url) {
-        if (!this.isLoggedIn()) return null;
-        try {
-            const formData = new URLSearchParams();
-            formData.append('url', url);
-
-            const response = await axios.post(`${BASE_URL}/scrape/html/torrents`, formData, {
-                headers: {
-                    ...this.getHeaders(),
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            });
-            return response.data;
-        } catch (error) {
-            console.error('Error scraping torrent:', error);
-            return null;
-        }
+        // Placeholder or implement in backend if needed
+        return null;
     },
 
-    // Add Torrent (Confirmed via v1.1.0 spec)
+    // Add Torrent
     async addTorrent(magnetLink) {
         if (!this.isLoggedIn()) return { success: false, error: 'Not logged in' };
 
         try {
             const formData = new URLSearchParams();
-            formData.append('folder_id', '0');
-            formData.append('type', 'torrent');
-            formData.append('torrent_magnet', magnetLink);
+            formData.append('magnet', magnetLink);
 
-            const response = await axios.post(`${BASE_URL}/task`, formData, {
+            const response = await axios.post(`${BASE_URL}/torrent`, formData, {
                 headers: {
-                    ...this.getHeaders(),
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
             });
 
             const data = response.data;
-            if (data.success === true || data.user_torrent_id) {
+            if (data.result === true || data.user_torrent_id) { // Seedr API returns result: true
                 return { success: true, title: data.title || 'Torrent added' };
             }
             return { success: false, error: data.error || 'Failed to add torrent' };
@@ -181,7 +133,7 @@ const SeedrService = {
         if (!this.isLoggedIn()) return null;
 
         try {
-            const data = await this.listFolderItems(folderId);
+            const data = folderId === 0 ? await this.listRootItems() : await this.listFolderItems(folderId);
             if (!data) return null;
 
             const files = data.files || [];
@@ -204,25 +156,14 @@ const SeedrService = {
         }
     },
 
-    // Get Download Link
+    // Get Download Link (Not explicitly implemented in backend, but video url is)
     async getDownloadLink(fileId) {
-        if (!this.isLoggedIn()) return null;
-        try {
-            const response = await axios.get(`${BASE_URL}/download/file/${fileId}/url`, {
-                headers: this.getHeaders()
-            });
-            if (response.data && response.data.url) {
-                return response.data.url;
-            }
-            return null;
-        } catch (error) {
-            console.error('Error fetching download link:', error);
-            return null;
-        }
+        // Reuse video URL logic for now
+        return this.getStreamManifest(fileId);
     },
 
     // Wait for Torrent Completion (Polling)
-    async waitForTorrentCompletion(timeout = 120000) { // 2 minutes timeout
+    async waitForTorrentCompletion(timeout = 120000) {
         if (!this.isLoggedIn()) return false;
 
         const startTime = Date.now();
@@ -231,33 +172,23 @@ const SeedrService = {
             try {
                 const data = await this.listRootItems();
                 if (data) {
-                    // User requested: check if torrents array is empty
                     if (!data.torrents || data.torrents.length === 0) {
                         return true;
-                    }
-                    // If torrents exist, check progress (optional logging)
-                    if (data.torrents.length > 0) {
-                        console.log(`Torrent progress: ${data.torrents[0].progress}%`);
                     }
                 }
             } catch (error) {
                 console.error('Error polling torrent status:', error);
             }
-
-            // Wait 2 seconds before next check
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
-
-        return false; // Timeout reached
+        return false;
     },
 
     // Get Stream Manifest
     async getStreamManifest(fileId) {
         if (!this.isLoggedIn()) return null;
         try {
-            const response = await axios.get(`${BASE_URL}/presentation/fs/item/${fileId}/video/url`, {
-                headers: this.getHeaders()
-            });
+            const response = await axios.get(`${BASE_URL}/video/${fileId}`);
             if (response.data && response.data.url) {
                 return response.data.url;
             }
@@ -268,7 +199,7 @@ const SeedrService = {
         }
     },
 
-    // Clear Account (Helper)
+    // Clear Account
     async clearAccount() {
         if (!this.isLoggedIn()) return;
         try {
@@ -282,21 +213,11 @@ const SeedrService = {
                 return { success: true };
             }
 
-            // Prepare batch delete array
             const deleteArr = [];
             folders.forEach(f => deleteArr.push({ type: 'folder', id: f.id.toString() }));
             files.forEach(f => deleteArr.push({ type: 'file', id: f.id.toString() }));
 
-            // Use batch delete endpoint
-            const formData = new URLSearchParams();
-            formData.append('delete_arr', JSON.stringify(deleteArr));
-
-            await axios.post(`${BASE_URL}/fs/batch/delete`, formData, {
-                headers: {
-                    ...this.getHeaders(),
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            });
+            await axios.post(`${BASE_URL}/delete`, { delete_arr: deleteArr });
 
             return { success: true };
 

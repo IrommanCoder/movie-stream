@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'https://yts.lt/api/v2';
+const BASE_URL = '/yts-api';
 
 const api = {
     async getTrending(limit = 15) {
