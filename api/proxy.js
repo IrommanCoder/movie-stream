@@ -64,7 +64,7 @@ export default async function handler(req, res) {
         // Copy response headers
         Object.entries(response.headers).forEach(([key, value]) => {
             const lowerKey = key.toLowerCase();
-            if (['content-length', 'content-encoding', 'transfer-encoding', 'connection'].includes(lowerKey)) return;
+            if (['content-length', 'content-encoding', 'transfer-encoding', 'connection', 'www-authenticate'].includes(lowerKey)) return;
 
             // Handle Set-Cookie
             if (lowerKey === 'set-cookie') {
