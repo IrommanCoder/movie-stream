@@ -40,6 +40,7 @@ export default async function handler(req, res) {
     delete headers.host;
     delete headers.connection;
     delete headers['content-length'];
+    delete headers['accept-encoding']; // Let node-fetch handle compression
 
     // Spoof User-Agent to look like a browser
     headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -77,14 +78,22 @@ export default async function handler(req, res) {
         });
 
         // Copy response headers
+        // Copy response headers
         response.headers.forEach((value, key) => {
+            const lowerKey = key.toLowerCase();
             // STRIP WWW-Authenticate to prevent browser popup
-            if (key.toLowerCase() === 'www-authenticate') return;
+            if (lowerKey === 'www-authenticate') return;
+            // STRIP Content-Encoding because node-fetch decompresses it, but we were passing the header back
+            if (lowerKey === 'content-encoding') return;
+            // STRIP Content-Length because the decompressed size is different
+            if (lowerKey === 'content-length') return;
+            // STRIP Transfer-Encoding because Vercel handles chunking
+            if (lowerKey === 'transfer-encoding') return;
 
             // Handle Set-Cookie if needed (though we use token/cookie from body usually)
             // But if Seedr sets cookies, we might want to pass them back or ignore them
             // depending on our auth strategy.
-            // For now, let's pass everything except WWW-Authenticate
+            // For now, let's pass everything except problematic headers
             res.setHeader(key, value);
         });
 
