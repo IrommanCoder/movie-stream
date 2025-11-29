@@ -1,120 +1,134 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState } from 'react';
 
 const MovieCard = ({ movie, onClick }) => {
     const [isHovered, setIsHovered] = useState(false);
-    const timerRef = useRef(null);
-
-    const handleMouseEnter = () => {
-        timerRef.current = setTimeout(() => {
-            setIsHovered(true);
-        }, 500); // 500ms delay before showing details
-    };
-
-    const handleMouseLeave = () => {
-        clearTimeout(timerRef.current);
-        setIsHovered(false);
-    };
 
     return (
         <div
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onClick={onClick}
-            style={{
-                minWidth: '200px',
-                height: '300px', // Portrait aspect ratio for YTS posters
-                position: 'relative',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                marginRight: '0.5rem',
-                zIndex: isHovered ? 100 : 1
-            }}
             className={`movie-card ${isHovered ? 'hovered' : ''}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onClick={onClick}
         >
-            <img
-                src={movie.medium_cover_image}
-                alt={movie.title}
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    borderRadius: '4px'
-                }}
-            />
+            <div className="card-content">
+                <img
+                    src={movie.medium_cover_image}
+                    alt={movie.title}
+                    className="card-image"
+                    loading="lazy"
+                />
 
-            {isHovered && (
-                <div style={{
-                    position: 'absolute',
-                    top: '-20%',
-                    left: '-20%',
-                    width: '140%',
-                    height: '140%',
-                    backgroundColor: '#18191f',
-                    borderRadius: '6px',
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.8)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    animation: 'fadeIn 0.3s ease'
-                }}>
-                    <div style={{ height: '60%', position: 'relative' }}>
-                        <img
-                            src={movie.medium_cover_image}
-                            alt={movie.title}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        <div style={{
-                            position: 'absolute',
-                            inset: 0,
-                            background: 'linear-gradient(to top, #18191f, transparent)',
-                        }}></div>
-                    </div>
-
-                    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="btn-icon">▶</button>
-                            <button className="btn-icon">+</button>
-                            <button className="btn-icon">↓</button>
-                        </div>
-                        <h4 style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{movie.title}</h4>
-                        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.7rem', color: '#46d369' }}>
-                            <span>{movie.rating * 10}% Match</span>
-                            <span style={{ color: '#fff', border: '1px solid #666', padding: '0 4px' }}>HD</span>
-                            <span style={{ color: '#ccc' }}>{movie.year}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.7rem', color: '#ccc' }}>
-                            {movie.genres?.slice(0, 3).join(' • ')}
-                        </div>
+                {/* Overlay on Hover */}
+                <div className="card-overlay">
+                    <h4 className="card-title">
+                        {movie.title}
+                    </h4>
+                    <div className="card-meta">
+                        <span className="rating">{movie.rating * 10}%</span>
+                        <span>{movie.year}</span>
+                        <span className="hd-badge">HD</span>
                     </div>
                 </div>
-            )}
-
+            </div>
             <style>{`
-        .btn-icon {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.5);
-            background: rgba(0,0,0,0.5);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-icon:hover {
-            border-color: white;
-            background: white;
-            color: black;
-        }
-        .btn-icon:first-child {
-            background: white;
-            color: black;
-            border-color: white;
-        }
-      `}</style>
+                .movie-card {
+                    min-width: 220px;
+                    height: 330px;
+                    position: relative;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                    margin-right: 1rem;
+                    z-index: 1;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+                }
+
+                .movie-card.hovered {
+                    transform: scale(1.05) translateY(-10px);
+                    z-index: 100;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+                }
+
+                .card-content {
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    position: relative;
+                    background: #1a1a1a;
+                }
+
+                .card-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    transition: transform 0.4s ease;
+                }
+
+                .movie-card.hovered .card-image {
+                    transform: scale(1.1);
+                }
+
+                .card-overlay {
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: flex-end;
+                    padding: 1.5rem;
+                }
+
+                .movie-card.hovered .card-overlay {
+                    opacity: 1;
+                }
+
+                .card-title {
+                    font-size: 1rem;
+                    font-weight: 700;
+                    color: #fff;
+                    margin-bottom: 0.5rem;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+                }
+
+                .card-meta {
+                    display: flex;
+                    gap: 8px;
+                    font-size: 0.8rem;
+                    color: rgba(255,255,255,0.8);
+                    font-weight: 500;
+                }
+
+                .rating {
+                    color: #4cd964;
+                }
+
+                .hd-badge {
+                    border: 1px solid rgba(255,255,255,0.4);
+                    padding: 0 4px;
+                    border-radius: 3px;
+                    font-size: 0.7rem;
+                }
+
+                @media (max-width: 768px) {
+                    .movie-card {
+                        min-width: 160px;
+                        height: 240px;
+                        margin-right: 0.5rem;
+                    }
+
+                    .card-overlay {
+                        padding: 1rem;
+                    }
+                    
+                    .card-title {
+                        font-size: 0.9rem;
+                    }
+                }
+            `}</style>
         </div>
     );
 };
