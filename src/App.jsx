@@ -1,92 +1,109 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
-import Row from './components/Row';
+import MovieRow from './components/MovieRow';
 import Modal from './components/Modal';
 import LoginModal from './components/LoginModal';
-import api from './services/api';
-import Watch from './pages/Watch';
+import { useMovies } from './hooks/useMovies';
 
-function Home() {
-  const [heroMovie, setHeroMovie] = useState(null);
-  const [rows, setRows] = useState({
-    trending: [],
-    topRated: [],
-    action: [],
-    comedy: []
-  });
+import { movies } from './services/api';
+
+function App() {
+  const { trending, topRated, action, comedy, loading } = useMovies();
   const [modalMovie, setModalMovie] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [user, setUser] = useState(null);
 
-  const [searchResults, setSearchResults] = useState(null);
+  useEffect(() => {
+    const storedUser = localStorage.getItem('seedr_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+    localStorage.setItem('seedr_user', JSON.stringify(userData));
+    // Save cookies if present (from OpenAPI spec response)
+    if (userData.cookies) {
+      localStorage.setItem('seedr_cookies', JSON.stringify(userData.cookies));
+    }
+    alert('Logged in successfully!');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('seedr_user');
+    localStorage.removeItem('seedr_cookies');
+    // Also clear cookies/tokens if stored separately
+  };
 
   const handleSearch = async (query) => {
     if (!query) {
-      setSearchResults(null);
+      setIsSearching(false);
+      setSearchResults([]);
       return;
     }
-    const results = await api.search(query);
-    if (results && results.movies) {
-      setSearchResults(results.movies);
+    setIsSearching(true);
+    try {
+      const res = await movies.search(query);
+      setSearchResults(res.data.data.movies || []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    const loadContent = () => {
-      api.getTrending().then(data => {
-        if (data && data.movies) {
-          setHeroMovie(data.movies[0]);
-          setRows(prev => ({ ...prev, trending: data.movies }));
-        }
-      });
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div className="loader">Loading...</div>
+      </div>
+    );
+  }
 
-      api.getTopRated().then(data => {
-        if (data && data.movies) {
-          setRows(prev => ({ ...prev, topRated: data.movies }));
-        }
-      });
-
-      api.getActionMovies().then(data => {
-        if (data && data.movies) {
-          setRows(prev => ({ ...prev, action: data.movies }));
-        }
-      });
-
-      api.getComedyMovies().then(data => {
-        if (data && data.movies) {
-          setRows(prev => ({ ...prev, comedy: data.movies }));
-        }
-      });
-    };
-
-    loadContent();
-  }, []);
+  // Use the first trending movie as hero
+  const heroMovie = trending[0];
 
   return (
     <div className="app">
-      <Navbar onLoginClick={() => setShowLogin(true)} onSearch={handleSearch} />
+      <Navbar
+        onLoginClick={() => setShowLogin(true)}
+        onSearch={handleSearch}
+        user={user}
+        onLogout={handleLogout}
+      />
 
-      {!searchResults && (
-        <Hero
-          movie={heroMovie}
-          onPlay={(m) => setModalMovie(m)}
-          onMoreInfo={(m) => setModalMovie(m)}
-        />
+      {!isSearching ? (
+        <>
+          <Hero
+            movie={heroMovie}
+            onPlay={(m) => setModalMovie(m)}
+            onMoreInfo={(m) => setModalMovie(m)}
+          />
+
+          <div className="main-content" style={{ marginTop: '-100px', position: 'relative', zIndex: 10 }}>
+            <MovieRow title="Trending Now" movies={trending} onMovieClick={setModalMovie} />
+            <MovieRow title="Top Rated" movies={topRated} onMovieClick={setModalMovie} />
+            <MovieRow title="Action Thrillers" movies={action} onMovieClick={setModalMovie} />
+            <MovieRow title="Comedies" movies={comedy} onMovieClick={setModalMovie} />
+          </div>
+        </>
+      ) : (
+        <div className="container" style={{ paddingTop: '100px' }}>
+          <h2>Search Results</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+            {searchResults.map(movie => (
+              <div key={movie.id} onClick={() => setModalMovie(movie)} style={{ width: '200px', cursor: 'pointer' }}>
+                <img src={movie.medium_cover_image} alt={movie.title} style={{ width: '100%', borderRadius: '4px' }} />
+                <p style={{ marginTop: '0.5rem' }}>{movie.title}</p>
+              </div>
+            ))}
+            {searchResults.length === 0 && <p>No results found.</p>}
+          </div>
+        </div>
       )}
-
-      <div className="main-content">
-        {searchResults ? (
-          <Row title="Search Results" movies={searchResults} onMovieClick={setModalMovie} />
-        ) : (
-          <>
-            <Row title="Trending Now" movies={rows.trending} onMovieClick={setModalMovie} />
-            <Row title="Top Rated" movies={rows.topRated} onMovieClick={setModalMovie} />
-            <Row title="Action Thrillers" movies={rows.action} onMovieClick={setModalMovie} />
-            <Row title="Comedies" movies={rows.comedy} onMovieClick={setModalMovie} />
-          </>
-        )}
-      </div>
 
       {modalMovie && (
         <Modal
@@ -98,19 +115,10 @@ function Home() {
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
-          onLoginSuccess={() => window.location.reload()}
+          onLoginSuccess={handleLoginSuccess}
         />
       )}
     </div>
-  );
-}
-
-function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/watch" element={<Watch />} />
-    </Routes>
   );
 }
 
