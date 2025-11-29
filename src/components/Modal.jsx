@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSeedr } from '../hooks/useSeedr';
 import api from '../services/api';
 import VideoPlayer from './VideoPlayer';
@@ -89,6 +89,22 @@ const Modal = ({ movie, onClose }) => {
         setStatus('browsing');
     };
 
+    // Memoize video options to prevent re-initialization loop
+    const videoOptions = useMemo(() => {
+        if (!videoUrl) return null;
+        return {
+            autoplay: true,
+            controls: true,
+            responsive: true,
+            fluid: true,
+            sources: [{
+                src: videoUrl,
+                type: videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+            }],
+            playbackRates: [0.5, 1, 1.5, 2]
+        };
+    }, [videoUrl]);
+
     return (
         <div style={{
             position: 'fixed',
@@ -148,23 +164,8 @@ const Modal = ({ movie, onClose }) => {
                     backgroundColor: '#000',
                     flex: status === 'playing' ? '1' : 'none'
                 }}>
-                    {status === 'playing' && videoUrl ? (
+                    {status === 'playing' && videoUrl && videoOptions ? (
                         <div style={{ width: '100%', height: '100%' }}>
-    const videoOptions = React.useMemo(() => ({
-                                autoplay: true,
-                            controls: true,
-                            responsive: true,
-                            fluid: true,
-                            sources: [{
-                                src: videoUrl,
-                            type: videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
-        }],
-                            playbackRates: [0.5, 1, 1.5, 2]
-    }), [videoUrl]);
-
-                            return (
-                            // ... (rest of the component)
-                            // Inside the render:
                             <VideoPlayer
                                 options={videoOptions}
                                 onReady={(player) => {
@@ -257,4 +258,3 @@ const Modal = ({ movie, onClose }) => {
 };
 
 export default Modal;
-
