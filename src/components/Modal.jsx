@@ -150,18 +150,23 @@ const Modal = ({ movie, onClose }) => {
                 }}>
                     {status === 'playing' && videoUrl ? (
                         <div style={{ width: '100%', height: '100%' }}>
+    const videoOptions = React.useMemo(() => ({
+                                autoplay: true,
+                            controls: true,
+                            responsive: true,
+                            fluid: true,
+                            sources: [{
+                                src: videoUrl,
+                            type: videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+        }],
+                            playbackRates: [0.5, 1, 1.5, 2]
+    }), [videoUrl]);
+
+                            return (
+                            // ... (rest of the component)
+                            // Inside the render:
                             <VideoPlayer
-                                options={{
-                                    autoplay: true,
-                                    controls: true,
-                                    responsive: true,
-                                    fluid: true,
-                                    sources: [{
-                                        src: videoUrl,
-                                        type: videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
-                                    }],
-                                    playbackRates: [0.5, 1, 1.5, 2]
-                                }}
+                                options={videoOptions}
                                 onReady={(player) => {
                                     console.log('Player ready', player);
                                 }}
