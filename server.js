@@ -28,6 +28,15 @@ app.use('/seedr', createProxyMiddleware({
     }
 }));
 
+// Proxy for YTS
+app.use('/yts', createProxyMiddleware({
+    target: 'https://yts.lt/api/v2',
+    changeOrigin: true,
+    pathRewrite: {
+        '^/yts': '', // remove /yts prefix
+    }
+}));
+
 // Serve static files from the dist directory
 app.use(express.static(path.join(__dirname, 'dist')));
 

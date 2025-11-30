@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // Configuration
-const YTS_BASE_URL = 'https://yts.lt/api/v2';
+// Configuration
+const YTS_BASE_URL = '/yts';
 // Use local proxy path defined in vite.config.js
 const SEEDR_BASE_URL = '/seedr';
 // CORS Proxy no longer needed for Seedr as Vite proxies it.

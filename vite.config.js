@@ -29,6 +29,11 @@ export default defineConfig({
             }
           });
         }
+      },
+      '/yts': {
+        target: 'https://yts.lt/api/v2',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/yts/, ''),
       }
     }
   }
