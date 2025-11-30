@@ -1,7 +1,19 @@
-import React from 'react';
-import { X, Play, Star, Calendar, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Play, Star, Calendar, Clock, Youtube } from 'lucide-react';
+import { movies as api } from '../services/api';
 
-const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWishlist }) => {
+const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWishlist, onSwitchMovie }) => {
+    const [similarMovies, setSimilarMovies] = useState([]);
+    const [showTrailer, setShowTrailer] = useState(false);
+
+    useEffect(() => {
+        if (movie?.id) {
+            api.getSuggestions(movie.id)
+                .then(res => setSimilarMovies(res.data.data.movies || []))
+                .catch(err => console.error("Error fetching suggestions:", err));
+        }
+    }, [movie]);
+
     if (!isOpen || !movie) return null;
 
     return (
@@ -13,7 +25,7 @@ const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWi
             />
 
             {/* Modal Content */}
-            <div className="relative bg-[#1c1c1e] w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden border border-white/10 flex flex-col md:flex-row animate-fade-in-up">
+            <div className="relative bg-[#1c1c1e] w-full max-w-6xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden border border-white/10 flex flex-col md:flex-row animate-fade-in-up">
                 {/* Close Button */}
                 <button
                     onClick={onClose}
@@ -102,13 +114,74 @@ const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWi
                                     </>
                                 )}
                             </button>
+
+                            {movie.yt_trailer_code && (
+                                <button
+                                    onClick={() => setShowTrailer(true)}
+                                    className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-red-600/20 border border-red-600/50 text-red-500 px-8 py-4 rounded-xl font-bold text-lg hover:bg-red-600/30 transition-colors"
+                                >
+                                    <Youtube className="w-6 h-6" />
+                                    <span>Trailer</span>
+                                </button>
+                            )}
                         </div>
+
+                        {/* Similar Movies */}
+                        {similarMovies.length > 0 && (
+                            <div className="pt-8 border-t border-white/10 mt-8">
+                                <h3 className="text-xl font-bold text-white mb-4">You Might Also Like</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {similarMovies.slice(0, 4).map(sim => (
+                                        <div
+                                            key={sim.id}
+                                            onClick={() => onSwitchMovie && onSwitchMovie(sim)}
+                                            className="cursor-pointer group"
+                                        >
+                                            <div className="relative aspect-[2/3] rounded-lg overflow-hidden mb-2">
+                                                <img
+                                                    src={sim.medium_cover_image}
+                                                    alt={sim.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                                            </div>
+                                            <h4 className="text-sm font-medium text-white/80 truncate group-hover:text-white transition-colors">{sim.title}</h4>
+                                            <p className="text-xs text-white/50">{sim.year}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <p className="mt-4 text-sm text-white/40 text-center md:text-left">
                             Streaming securely via Seedr.cc
                         </p>
                     </div>
                 </div>
             </div>
+
+            {/* Trailer Modal */}
+            {showTrailer && (
+                <div className="fixed inset-0 z-[150] bg-black/90 flex items-center justify-center p-4">
+                    <div className="relative w-full max-w-4xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+                        <button
+                            onClick={() => setShowTrailer(false)}
+                            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-white/20 transition-colors"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                        <iframe
+                            width="100%"
+                            height="100%"
+                            src={`https://www.youtube.com/embed/${movie.yt_trailer_code}?autoplay=1`}
+                            title="YouTube video player"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                        ></iframe>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

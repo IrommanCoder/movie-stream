@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import MovieCard from './MovieCard';
 
-const ContentRow = ({ title, movies, onMovieClick }) => {
+const ContentRow = ({ title, movies, onMovieClick, onTitleClick }) => {
     const rowRef = useRef(null);
 
     const scroll = (direction) => {
@@ -18,9 +18,12 @@ const ContentRow = ({ title, movies, onMovieClick }) => {
     return (
         <div className="space-y-4 py-8 relative group/row">
             {/* Title */}
-            <h2 className="text-2xl font-bold text-white px-4 md:px-12 flex items-center gap-2 group-hover/title:text-blue-400 transition-colors cursor-pointer">
+            <h2
+                onClick={onTitleClick}
+                className={`text-2xl font-bold text-white px-4 md:px-12 flex items-center gap-2 transition-colors ${onTitleClick ? 'cursor-pointer hover:text-blue-400 group-hover/title:text-blue-400' : ''}`}
+            >
                 {title}
-                <ChevronRight className="w-5 h-5 text-white/50" />
+                {onTitleClick && <ChevronRight className="w-5 h-5 text-white/50" />}
             </h2>
 
             {/* Scroll Container */}

@@ -4,7 +4,7 @@ import Plyr from 'plyr-react';
 import 'plyr-react/plyr.css';
 import Hls from 'hls.js';
 
-const Player = ({ src, onClose, title }) => {
+const Player = ({ src, onClose, title, movieId }) => {
     const ref = useRef(null);
 
     useEffect(() => {
@@ -13,13 +13,20 @@ const Player = ({ src, onClose, title }) => {
 
             if (!video) return;
 
+            // Load progress
+            const savedProgress = JSON.parse(localStorage.getItem('movie_progress') || '{}');
+            const startTime = savedProgress[movieId] || 0;
+
             if (Hls.isSupported()) {
                 const hls = new Hls();
                 hls.loadSource(src);
                 hls.attachMedia(video);
 
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    // video.play(); // Let Plyr handle autoplay
+                    if (startTime > 0) {
+                        video.currentTime = startTime;
+                    }
+                    video.play().catch(() => { });
                 });
 
                 ref.current.plyr.on('languagechange', () => {
@@ -27,13 +34,27 @@ const Player = ({ src, onClose, title }) => {
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 video.src = src;
+                if (startTime > 0) {
+                    video.currentTime = startTime;
+                }
             }
+
+            // Save progress every 5 seconds
+            const saveInterval = setInterval(() => {
+                if (video && !video.paused) {
+                    const currentProgress = JSON.parse(localStorage.getItem('movie_progress') || '{}');
+                    currentProgress[movieId] = video.currentTime;
+                    localStorage.setItem('movie_progress', JSON.stringify(currentProgress));
+                }
+            }, 5000);
+
+            return () => clearInterval(saveInterval);
         };
 
         // Small delay to ensure Plyr has rendered the video tag
         const timer = setTimeout(loadHls, 200);
         return () => clearTimeout(timer);
-    }, [src]);
+    }, [src, movieId]);
 
     useEffect(() => {
         // Handle escape key to close

@@ -1,21 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+import Footer from './components/Footer';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ContentRow from './components/ContentRow';
-import LoginModal from './components/LoginModal';
-import MovieDetailModal from './components/MovieDetailModal';
-import WishlistModal from './components/WishlistModal';
-import Player from './components/Player';
+import Loader from './components/Loader';
 import { movies as api, seedr } from './services/api';
 import { useSeedr } from './hooks/useSeedr';
+
+// Lazy load heavy components
+const LoginModal = lazy(() => import('./components/LoginModal'));
+const MovieDetailModal = lazy(() => import('./components/MovieDetailModal'));
+const WishlistModal = lazy(() => import('./components/WishlistModal'));
+const Explore = lazy(() => import('./components/Explore'));
+const Player = lazy(() => import('./components/Player'));
 
 function App() {
   const [user, setUser] = useState(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isWishlistOpen, setIsWishlistOpen] = useState(false); // Added missing state
+  const [isWishlistOpen, setIsWishlistOpen] = useState(false);
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [playerUrl, setPlayerUrl] = useState(null);
   const [playerTitle, setPlayerTitle] = useState('');
+  const [playerMovieId, setPlayerMovieId] = useState(null);
 
   // Movie Data State
   const [trending, setTrending] = useState([]);
@@ -28,10 +35,11 @@ function App() {
 
   const [loadingMessage, setLoadingMessage] = useState(null);
   const [wishlist, setWishlist] = useState([]);
+  const [continueWatching, setContinueWatching] = useState([]);
 
   const { addAndPlay } = useSeedr();
 
-  // Check for existing login and wishlist
+  // Check for existing login, wishlist, and continue watching
   useEffect(() => {
     const storedUser = localStorage.getItem('seedr_user');
     if (storedUser) {
@@ -41,6 +49,11 @@ function App() {
     const storedWishlist = localStorage.getItem('movie_wishlist');
     if (storedWishlist) {
       setWishlist(JSON.parse(storedWishlist));
+    }
+
+    const storedContinueWatching = localStorage.getItem('continue_watching');
+    if (storedContinueWatching) {
+      setContinueWatching(JSON.parse(storedContinueWatching));
     }
   }, []);
 
@@ -66,15 +79,18 @@ function App() {
     });
   };
 
-  // Fetch Movies
+  // Fetch Movies with Randomization
   useEffect(() => {
     const fetchMovies = async () => {
       try {
+        // Generate random page numbers (1-10) to keep content fresh
+        const randomPage = () => Math.floor(Math.random() * 10) + 1;
+
         const [trendingRes, topRatedRes, actionRes, comedyRes] = await Promise.all([
-          api.getTrending(),
-          api.getTopRated(),
-          api.getAction(),
-          api.getComedy()
+          api.getTrending(randomPage()),
+          api.getTopRated(randomPage()),
+          api.getAction(randomPage()),
+          api.getComedy(randomPage())
         ]);
 
         setTrending(trendingRes.data.data.movies || []);
@@ -156,8 +172,16 @@ function App() {
 
       setPlayerUrl(url);
       setPlayerTitle(movie.title);
+      setPlayerMovieId(movie.id);
       setSelectedMovie(null); // Close modal when playing
       setLoadingMessage(null); // Clear message
+
+      // Add to Continue Watching
+      setContinueWatching(prev => {
+        const newHistory = [movie, ...prev.filter(m => m.id !== movie.id)].slice(0, 10); // Keep last 10
+        localStorage.setItem('continue_watching', JSON.stringify(newHistory));
+        return newHistory;
+      });
     } catch (error) {
       console.error("Playback error:", error);
       alert("Failed to start playback: " + error.message);
@@ -170,10 +194,19 @@ function App() {
     handlePlay(movie);
   };
 
+  const [exploreInitialGenre, setExploreInitialGenre] = useState('all');
+  const [exploreInitialSort, setExploreInitialSort] = useState('date_added');
+
+  const handleCategoryClick = (genre = 'all', sort = 'date_added') => {
+    setExploreInitialGenre(genre);
+    setExploreInitialSort(sort);
+    setIsExploreOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        <Loader className="w-16 h-16" />
       </div>
     );
   }
@@ -185,7 +218,12 @@ function App() {
         onLoginClick={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
         onSearch={handleSearch}
-        onWishlistClick={() => setIsWishlistOpen(true)} // Added prop
+        onWishlistClick={() => setIsWishlistOpen(true)}
+        onExploreClick={() => {
+          setExploreInitialGenre('all');
+          setExploreInitialSort('date_added');
+          setIsExploreOpen(true);
+        }}
       />
 
       <main>
@@ -199,10 +237,33 @@ function App() {
             />
 
             <div className="relative z-10 -mt-32 pb-20 space-y-8">
-              <ContentRow title="Latest Originals" movies={trending} onMovieClick={handleMovieClick} />
-              <ContentRow title="Hit Movies" movies={topRated} onMovieClick={handleMovieClick} />
-              <ContentRow title="Action Thrillers" movies={action} onMovieClick={handleMovieClick} />
-              <ContentRow title="Comedy Series" movies={comedy} onMovieClick={handleMovieClick} />
+              {continueWatching.length > 0 && (
+                <ContentRow title="Continue Watching" movies={continueWatching} onMovieClick={handleMovieClick} />
+              )}
+              <ContentRow
+                title="Latest Movies"
+                movies={trending}
+                onMovieClick={handleMovieClick}
+                onTitleClick={() => handleCategoryClick('all', 'date_added')}
+              />
+              <ContentRow
+                title="Hit Movies"
+                movies={topRated}
+                onMovieClick={handleMovieClick}
+                onTitleClick={() => handleCategoryClick('all', 'rating')}
+              />
+              <ContentRow
+                title="Action Thrillers"
+                movies={action}
+                onMovieClick={handleMovieClick}
+                onTitleClick={() => handleCategoryClick('Action', 'date_added')}
+              />
+              <ContentRow
+                title="Comedy Series"
+                movies={comedy}
+                onMovieClick={handleMovieClick}
+                onTitleClick={() => handleCategoryClick('Comedy', 'date_added')}
+              />
             </div>
           </>
         ) : (
@@ -214,6 +275,7 @@ function App() {
                   <img
                     src={movie.medium_cover_image || movie.large_cover_image}
                     alt={movie.title}
+                    loading="lazy"
                     className="w-full aspect-[2/3] object-cover rounded-xl shadow-lg group-hover:scale-105 transition-transform duration-300"
                   />
                   <h3 className="mt-3 text-sm font-medium text-white group-hover:text-blue-400 transition-colors truncate">{movie.title}</h3>
@@ -228,44 +290,62 @@ function App() {
         )}
       </main>
 
-      <LoginModal
-        isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
-        onLogin={handleLogin}
-      />
+      <Footer />
 
-      <MovieDetailModal
-        movie={selectedMovie}
-        isOpen={!!selectedMovie}
-        onClose={() => setSelectedMovie(null)}
-        onPlay={handlePlay}
-        wishlist={wishlist}
-        onToggleWishlist={toggleWishlist}
-      />
-
-      <WishlistModal // Added component
-        isOpen={isWishlistOpen}
-        onClose={() => setIsWishlistOpen(false)}
-        wishlist={wishlist}
-        onPlay={handlePlayFromWishlist}
-        onRemove={removeFromWishlist}
-      />
-
-      {playerUrl && (
-        <Player
-          src={playerUrl}
-          title={playerTitle}
-          onClose={() => {
-            setPlayerUrl(null);
-            setPlayerTitle('');
-          }}
+      <Suspense fallback={null}>
+        <LoginModal
+          isOpen={isLoginOpen}
+          onClose={() => setIsLoginOpen(false)}
+          onLogin={handleLogin}
         />
-      )}
+
+        <MovieDetailModal
+          movie={selectedMovie}
+          isOpen={!!selectedMovie}
+          onClose={() => setSelectedMovie(null)}
+          onPlay={handlePlay}
+          wishlist={wishlist}
+          onToggleWishlist={toggleWishlist}
+          onSwitchMovie={setSelectedMovie}
+        />
+
+        <WishlistModal
+          isOpen={isWishlistOpen}
+          onClose={() => setIsWishlistOpen(false)}
+          wishlist={wishlist}
+          onPlay={handlePlayFromWishlist}
+          onRemove={removeFromWishlist}
+        />
+
+        <Explore
+          isOpen={isExploreOpen}
+          onClose={() => setIsExploreOpen(false)}
+          onMovieClick={(movie) => {
+            setIsExploreOpen(false);
+            handleMovieClick(movie);
+          }}
+          initialGenre={exploreInitialGenre}
+          initialSort={exploreInitialSort}
+        />
+
+        {playerUrl && (
+          <Player
+            src={playerUrl}
+            title={playerTitle}
+            movieId={playerMovieId}
+            onClose={() => {
+              setPlayerUrl(null);
+              setPlayerTitle('');
+              setPlayerMovieId(null);
+            }}
+          />
+        )}
+      </Suspense>
 
       {/* Loading Toast */}
       {loadingMessage && (
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[300] bg-[#1c1c1e] border border-white/10 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-fade-in-up">
-          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <Loader className="w-5 h-5" />
           <span className="text-sm font-medium text-white">{loadingMessage}</span>
         </div>
       )}

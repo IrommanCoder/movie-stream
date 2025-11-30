@@ -24,36 +24,36 @@ const Hero = ({ movie, onPlay, wishlist, onToggleWishlist }) => {
 
       {/* Content */}
       <div className="relative h-full flex items-end pb-24 px-4 md:px-12 max-w-[1920px] mx-auto">
-        <div className="max-w-2xl space-y-6 animate-fade-in-up">
+        <div className="max-w-2xl space-y-4 md:space-y-6 animate-fade-in-up">
           {/* Metadata */}
-          <div className="flex items-center gap-3 text-sm font-medium text-white/80 uppercase tracking-wider">
+          <div className="flex items-center gap-3 text-xs md:text-sm font-medium text-white/80 uppercase tracking-wider">
             <span>{movie.genres?.[0] || 'Movie'}</span>
             <span>•</span>
             <span>{movie.year}</span>
           </div>
 
           {/* Title */}
-          <h1 className="text-5xl md:text-7xl font-bold text-white leading-tight drop-shadow-2xl">
+          <h1 className="text-4xl md:text-7xl font-bold text-white leading-tight drop-shadow-2xl line-clamp-2">
             {movie.title}
           </h1>
 
           {/* Description */}
-          <p className="text-lg text-white/90 line-clamp-3 font-medium drop-shadow-md">
+          <p className="text-sm md:text-lg text-white/90 line-clamp-3 font-medium drop-shadow-md hidden md:line-clamp-3">
             {movie.summary || movie.description_full}
           </p>
 
           {/* Buttons */}
-          <div className="flex items-center gap-4 pt-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 pt-4">
             <button
               onClick={() => onPlay(movie)}
-              className="flex items-center gap-2 bg-white text-black px-8 py-3.5 rounded-lg font-bold hover:scale-105 transition-transform duration-200 shadow-lg shadow-white/10"
+              className="flex items-center justify-center gap-2 bg-white text-black px-8 py-3 md:py-3.5 rounded-lg font-bold hover:scale-105 transition-transform duration-200 shadow-lg shadow-white/10"
             >
               <Play className="w-5 h-5 fill-current" />
               <span>Play</span>
             </button>
             <button
               onClick={() => onToggleWishlist(movie)}
-              className="flex items-center gap-2 bg-white/10 backdrop-blur-md text-white px-8 py-3.5 rounded-lg font-bold hover:bg-white/20 transition-all duration-200 border border-white/10"
+              className="flex items-center justify-center gap-2 bg-white/10 backdrop-blur-md text-white px-8 py-3 md:py-3.5 rounded-lg font-bold hover:bg-white/20 transition-all duration-200 border border-white/10"
             >
               <Plus className={`w-5 h-5 ${wishlist?.some(m => m.id === movie.id) ? 'rotate-45' : ''} transition-transform duration-300`} />
               <span>{wishlist?.some(m => m.id === movie.id) ? 'In Wishlist' : 'Add to Wishlist'}</span>
