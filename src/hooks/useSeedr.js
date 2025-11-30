@@ -107,46 +107,46 @@ export const useSeedr = () => {
             console.log("Added:", addedTitle);
 
             // 3. Poll for completion
-            return new Promise((resolve, reject) => {
+            return new Promise(async (resolve, reject) => {
                 let attempts = 0;
                 const maxAttempts = 120; // 4 minutes
 
-                const interval = setInterval(async () => {
+                while (attempts < maxAttempts) {
                     attempts++;
                     console.log(`Polling attempt ${attempts}...`);
 
-                    const data = await fetchFiles('0'); // Check root
-                    console.log("Poll Data:", JSON.stringify(data));
+                    try {
+                        const data = await fetchFiles('0'); // Check root
+                        console.log("Poll Data:", JSON.stringify(data));
 
-                    // Check active torrents for progress
-                    const activeTorrent = data.torrents.find(t =>
-                        t.hash === addRes.data.torrent_hash ||
-                        t.name === title ||
-                        t.title === title
-                    );
+                        // Check active torrents for progress
+                        const activeTorrent = data.torrents.find(t =>
+                            t.hash === addRes.data.torrent_hash ||
+                            t.name === title ||
+                            t.title === title
+                        );
 
-                    if (activeTorrent) {
-                        if (activeTorrent.progress < 100) {
-                            // Still downloading
-                            console.log(`Progress: ${activeTorrent.progress}%`);
-                            return;
+                        if (activeTorrent) {
+                            if (activeTorrent.progress < 100) {
+                                // Still downloading
+                                console.log(`Progress: ${activeTorrent.progress}%`);
+                                await new Promise(r => setTimeout(r, 2000)); // Wait 2s before next check
+                                continue;
+                            }
                         }
-                    }
 
-                    // If torrent is gone or 100%, check for folder
-                    const folder = data.folders.find(f => {
-                        const folderName = f.path || f.name;
-                        // Loose matching to handle title variations
-                        return folderName.toLowerCase().includes(title.toLowerCase()) ||
-                            title.toLowerCase().includes(folderName.toLowerCase());
-                    });
+                        // If torrent is gone or 100%, check for folder
+                        const folder = data.folders.find(f => {
+                            const folderName = f.path || f.name;
+                            // Loose matching to handle title variations
+                            return folderName.toLowerCase().includes(title.toLowerCase()) ||
+                                title.toLowerCase().includes(folderName.toLowerCase());
+                        });
 
-                    if (folder) {
-                        clearInterval(interval);
-                        console.log("Folder found:", folder.path || folder.name, "ID:", folder.id);
+                        if (folder) {
+                            console.log("Folder found:", folder.path || folder.name, "ID:", folder.id);
 
-                        // 4. Find Video File recursively
-                        try {
+                            // 4. Find Video File recursively
                             const video = await findVideoFile(folder.id);
                             if (video) {
                                 console.log("Found video file:", video.name, "ID:", video.id);
@@ -155,23 +155,26 @@ export const useSeedr = () => {
                                 console.log("Stream URL response:", videoUrlRes.data);
                                 if (videoUrlRes.data && videoUrlRes.data.url) {
                                     resolve(videoUrlRes.data.url);
+                                    return;
                                 } else {
                                     reject(new Error("Seedr did not return a stream URL"));
+                                    return;
                                 }
                             } else {
                                 console.warn("No video file found in folder:", folder.name);
                                 reject(new Error("No video file found in folder"));
+                                return;
                             }
-                        } catch (findErr) {
-                            console.error("Error finding video:", findErr);
-                            reject(findErr);
                         }
-                    } else if (attempts > maxAttempts) {
-                        clearInterval(interval);
-                        console.error("Timeout waiting for folder. Last data:", data);
-                        reject(new Error("Timeout waiting for download"));
+                    } catch (pollErr) {
+                        console.error("Polling error:", pollErr);
+                        // Don't reject immediately on poll error, just wait and retry
                     }
-                }, 2000);
+
+                    await new Promise(r => setTimeout(r, 2000)); // Wait 2s before next loop
+                }
+
+                reject(new Error("Timeout waiting for download"));
             });
 
         } catch (err) {

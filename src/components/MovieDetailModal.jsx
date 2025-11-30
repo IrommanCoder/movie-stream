@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Play, Star, Calendar, Clock, Youtube } from 'lucide-react';
+import { X, Play, Star, Calendar, Clock, Youtube, Share2 } from 'lucide-react';
 import { movies as api } from '../services/api';
 
 const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWishlist, onSwitchMovie }) => {
     const [similarMovies, setSimilarMovies] = useState([]);
     const [showTrailer, setShowTrailer] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     useEffect(() => {
         if (movie?.id) {
@@ -84,9 +85,20 @@ const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWi
                         </div>
 
                         {/* Synopsis */}
-                        <p className="text-lg text-white/80 leading-relaxed">
-                            {movie.description_full || movie.summary}
-                        </p>
+                        {/* Synopsis */}
+                        <div>
+                            <p className="text-lg text-white/80 leading-relaxed">
+                                {isExpanded ? (movie.description_full || movie.summary) : (movie.description_full || movie.summary)?.slice(0, 150) + '...'}
+                            </p>
+                            {(movie.description_full || movie.summary)?.length > 150 && (
+                                <button
+                                    onClick={() => setIsExpanded(!isExpanded)}
+                                    className="mt-2 text-blue-400 hover:text-blue-300 font-medium text-sm"
+                                >
+                                    {isExpanded ? 'Read Less' : 'Read More'}
+                                </button>
+                            )}
+                        </div>
 
                         {/* Actions */}
                         <div className="pt-6 flex flex-col md:flex-row gap-4">
@@ -124,6 +136,19 @@ const MovieDetailModal = ({ movie, isOpen, onClose, onPlay, wishlist, onToggleWi
                                     <span>Trailer</span>
                                 </button>
                             )}
+
+                            <button
+                                onClick={() => {
+                                    const url = `${window.location.origin}?movie=${movie.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    // Simple visual feedback could be added here, e.g. changing text temporarily
+                                    alert("Link copied to clipboard!");
+                                }}
+                                className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-white/5 border border-white/10 text-white px-6 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-colors"
+                                title="Share Movie"
+                            >
+                                <Share2 className="w-6 h-6" />
+                            </button>
                         </div>
 
                         {/* Similar Movies */}

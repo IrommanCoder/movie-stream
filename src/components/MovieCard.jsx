@@ -5,7 +5,7 @@ const MovieCard = ({ movie, onClick }) => {
     return (
         <div
             onClick={() => onClick && onClick(movie)}
-            className="relative group min-w-[160px] md:min-w-[200px] aspect-[2/3] cursor-pointer transition-all duration-300 hover:scale-105 hover:z-10"
+            className="relative group min-w-[130px] md:min-w-[200px] aspect-[2/3] cursor-pointer transition-all duration-300 hover:scale-105 hover:z-10"
         >
             {/* Image */}
             <img

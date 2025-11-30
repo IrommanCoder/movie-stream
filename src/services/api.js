@@ -17,6 +17,20 @@ const api = axios.create({
     }
 });
 
+// Add response interceptor to handle 401s globally
+api.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            console.warn("Session expired or unauthorized. Clearing credentials.");
+            localStorage.removeItem('seedr_user');
+            localStorage.removeItem('seedr_cookies');
+            window.dispatchEvent(new Event('seedr:logout'));
+        }
+        return Promise.reject(error);
+    }
+);
+
 // Helper to get headers with cookies and potential Bearer token
 const getHeaders = (isForm = false) => {
     const headers = {
@@ -55,10 +69,10 @@ const getHeaders = (isForm = false) => {
 };
 
 export const movies = {
-    getTrending: (page = 1) => api.get(`${YTS_BASE_URL}/list_movies.json?sort_by=download_count&limit=20&page=${page}`),
-    getTopRated: (page = 1) => api.get(`${YTS_BASE_URL}/list_movies.json?sort_by=rating&limit=20&page=${page}`),
-    getAction: (page = 1) => api.get(`${YTS_BASE_URL}/list_movies.json?genre=action&limit=20&page=${page}`),
-    getComedy: (page = 1) => api.get(`${YTS_BASE_URL}/list_movies.json?genre=comedy&limit=20&page=${page}`),
+    getTrending: (page = 1, limit = 8) => api.get(`${YTS_BASE_URL}/list_movies.json?sort_by=download_count&limit=${limit}&page=${page}`),
+    getTopRated: (page = 1, limit = 8) => api.get(`${YTS_BASE_URL}/list_movies.json?sort_by=rating&limit=${limit}&page=${page}`),
+    getAction: (page = 1, limit = 8) => api.get(`${YTS_BASE_URL}/list_movies.json?genre=action&limit=${limit}&page=${page}`),
+    getComedy: (page = 1, limit = 8) => api.get(`${YTS_BASE_URL}/list_movies.json?genre=comedy&limit=${limit}&page=${page}`),
     search: (query) => api.get(`${YTS_BASE_URL}/list_movies.json?query_term=${query}`),
     getDetails: (id) => api.get(`${YTS_BASE_URL}/movie_details.json?movie_id=${id}&with_images=true&with_cast=true`),
     getSuggestions: (id) => api.get(`${YTS_BASE_URL}/movie_suggestions.json?movie_id=${id}`),

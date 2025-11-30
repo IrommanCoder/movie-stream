@@ -55,6 +55,19 @@ function App() {
     if (storedContinueWatching) {
       setContinueWatching(JSON.parse(storedContinueWatching));
     }
+
+    const handleSessionExpired = () => {
+      setUser(null);
+      setIsLoginOpen(true);
+      setLoadingMessage(null); // Clear any loading toasts
+      // Optional: Show a message "Session expired, please login again"
+    };
+
+    window.addEventListener('seedr:logout', handleSessionExpired);
+
+    return () => {
+      window.removeEventListener('seedr:logout', handleSessionExpired);
+    };
   }, []);
 
   const toggleWishlist = (movie) => {
@@ -106,6 +119,46 @@ function App() {
 
     fetchMovies();
   }, []);
+
+  // Deep Linking for Share Feature
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const movieId = params.get('movie');
+    if (movieId) {
+      api.getDetails(movieId)
+        .then(res => {
+          if (res.data.data.movie) {
+            setSelectedMovie(res.data.data.movie);
+            // Clean URL without reloading
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        })
+        .catch(err => console.error("Error fetching shared movie:", err));
+    }
+  }, []);
+
+  const handleSurpriseMe = async () => {
+    try {
+      setLoadingMessage("Picking a random movie...");
+      // Random page 1-50
+      const page = Math.floor(Math.random() * 50) + 1;
+      const res = await api.getTopRated(page);
+      const movies = res.data.data.movies || [];
+
+      if (movies.length > 0) {
+        const randomMovie = movies[Math.floor(Math.random() * movies.length)];
+        setSelectedMovie(randomMovie);
+      } else {
+        // Fallback if empty page
+        const fallback = trending[Math.floor(Math.random() * trending.length)];
+        if (fallback) setSelectedMovie(fallback);
+      }
+    } catch (error) {
+      console.error("Surprise Me error:", error);
+    } finally {
+      setLoadingMessage(null);
+    }
+  };
 
   const handleLogin = async (username, password) => {
     const res = await seedr.login(username, password);
@@ -184,8 +237,15 @@ function App() {
       });
     } catch (error) {
       console.error("Playback error:", error);
-      alert("Failed to start playback: " + error.message);
       setLoadingMessage(null);
+
+      // If it's a 401, the global handler will take care of it (logout + open login modal)
+      // So we don't need to show a generic alert
+      if (error.response && error.response.status === 401) {
+        return;
+      }
+
+      alert("Failed to start playback: " + (error.message || "Unknown error"));
     }
   };
 
@@ -234,6 +294,7 @@ function App() {
               onPlay={handleMovieClick}
               wishlist={wishlist}
               onToggleWishlist={toggleWishlist}
+              onSurpriseMe={handleSurpriseMe}
             />
 
             <div className="relative z-10 -mt-32 pb-20 space-y-8">
@@ -269,7 +330,7 @@ function App() {
         ) : (
           <div className="pt-32 px-4 md:px-12 pb-20">
             <h2 className="text-2xl font-bold text-white mb-8">Search Results</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
               {searchResults.map(movie => (
                 <div key={movie.id} onClick={() => handleMovieClick(movie)} className="cursor-pointer group">
                   <img

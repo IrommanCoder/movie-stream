@@ -1,7 +1,7 @@
 import React from 'react';
 import { Play, Plus } from 'lucide-react';
 
-const Hero = ({ movie, onPlay, wishlist, onToggleWishlist }) => {
+const Hero = ({ movie, onPlay, wishlist, onToggleWishlist, onSurpriseMe }) => {
   if (!movie) return null;
 
   return (
@@ -57,6 +57,13 @@ const Hero = ({ movie, onPlay, wishlist, onToggleWishlist }) => {
             >
               <Plus className={`w-5 h-5 ${wishlist?.some(m => m.id === movie.id) ? 'rotate-45' : ''} transition-transform duration-300`} />
               <span>{wishlist?.some(m => m.id === movie.id) ? 'In Wishlist' : 'Add to Wishlist'}</span>
+            </button>
+            <button
+              onClick={onSurpriseMe}
+              className="flex items-center justify-center gap-2 bg-purple-600 text-white px-8 py-3 md:py-3.5 rounded-lg font-bold hover:bg-purple-700 transition-all duration-200 shadow-lg shadow-purple-900/20"
+            >
+              <span className="text-xl">🎲</span>
+              <span>Surprise Me</span>
             </button>
           </div>
         </div>
